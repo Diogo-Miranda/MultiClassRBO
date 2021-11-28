@@ -36,8 +36,19 @@ def generate_possible_directions(n_dimensions, excluded_direction=None):
 
     return possible_directions
 
-
+# Essa classe diz a respeito do B-RBO (binary radial-based oversampling)
+# Algoritmo utiliza ma variacao de algoritmo simple hill climbing
+# O algoritmo simple hill climbing utiliza a ideia de encontrar uma melhor otimizacao
+# entre as regioes encontradas no algoritmo. Esse algoritmo produz observacoes sinteticas que
+# sao utilizadas para encontrar regioes adequadas para cada observacao.
 class RBO:
+    # Parameters
+    # gamma = Parametro utilizado para calculo da funcao Gaussiana RBF
+    # define o nivel de distincao que teremos entre os vizinhos
+    # default: 0.05, que da o valor de melhor separacao entre os vizinhos
+    # step_size = otimizacao utilizada no algoritmo
+    # n_steps = numero de iteracoes que teremos por cada observacao sintetica, utiliza
+    # a ideia de k vizinhos proximos, uma potencial aproximacao
     def __init__(self, gamma=0.05, step_size=0.001, n_steps=500, approximate_potential=True,
                  n_nearest_neighbors=25, minority_class=None, n=None):
         self.gamma = gamma
@@ -51,6 +62,7 @@ class RBO:
     def fit_sample(self, X, y):
         classes = np.unique(y)
 
+        # Definir a classe minoritaria
         if self.minority_class is None:
             sizes = [sum(y == c) for c in classes]
 
@@ -58,7 +70,9 @@ class RBO:
         else:
             minority_class = self.minority_class
 
+        # Pegar pontos da classe minoritaria
         minority_points = X[y == minority_class].copy()
+        # Pegar pontos da classe maioritaria
         majority_points = X[y != minority_class].copy()
 
         if self.n is None:
@@ -71,7 +85,8 @@ class RBO:
         considered_minority_points_indices = range(len(minority_points))
 
         n_synthetic_points_per_minority_object = {i: 0 for i in considered_minority_points_indices}
-
+        # Escolhe um ponto minoritario aleatoriamente nas observacoes inputadas
+        # Fase inicial do algoritmo de hill climbing
         for _ in range(n):
             idx = np.random.choice(considered_minority_points_indices)
             n_synthetic_points_per_minority_object[idx] += 1
@@ -124,7 +139,9 @@ class RBO:
 
         return appended
 
-
+# Essa classe diz a respeito do algoritmo MC-RBO
+# Esse algoritmo utiliza a ideia de que, cada instancia de cada classe
+# deve ser avaliada para a realizacao do balanceamento
 class MultiClassRBO:
     def __init__(self, gamma=0.05, step_size=0.001, n_steps=500, approximate_potential=True,
                  n_nearest_neighbors=25, method='sampling'):
@@ -138,16 +155,28 @@ class MultiClassRBO:
         self.method = method
 
     def fit_sample(self, X, y):
+        # Retorna as classes presentes nas nossas observacoes
         classes = np.unique(y)
+        # Retorna a quantidade de instancia por classe
         sizes = np.array([float(sum(y == c)) for c in classes])
+        # Retorna os indices referentes a cada classe e ordem de forma decrescente
+        # Essa ordenacao nos ajudo a identificar a classe de maior valor, ou seja, a maioritaria
         indices = np.argsort(sizes)[::-1]
+        # Identifica as classes de acordo com os indices
         classes = classes[indices]
+        # Separa as observacoes por classes
         observations = [X[y == c] for c in classes]
         n_max = len(observations[0])
 
         if self.method == 'sampling':
+            # Para cada classe
             for i in range(1, len(classes)):
+                # Pego a classe no indice indicado
+                # No caso, comeca do indice 1, ja que o indice 0 eh da classse de maior valor
+                # E o metodo utilizado eh OVA
                 cls = classes[i]
+                # Retorna a diferenca entre a classe
+                # MAJORITARIA - MINORITARIA(I)
                 n = n_max - len(observations[i])
                 X_sample = [observations[i]]
                 y_sample = [cls * np.ones(len(observations[i]))]
@@ -157,6 +186,8 @@ class MultiClassRBO:
                     X_sample.append(observations[j][indices])
                     y_sample.append(classes[j] * np.ones(len(X_sample[-1])))
 
+                # Instancio o algoritmo RBO considerando a classe minoritaria como
+                # a classe que esta sendo avaliada atualmente
                 oversampler = RBO(gamma=self.gamma, step_size=self.step_size, n_steps=self.n_steps,
                                   approximate_potential=self.approximate_potential,
                                   n_nearest_neighbors=self.n_nearest_neighbors, minority_class=cls, n=n)

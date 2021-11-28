@@ -67,7 +67,7 @@ def load(name, partition, fold):
     for partition_type in ['train', 'test']:
         path = os.path.join(FOLDS_PATH, name, '%s.%d.%d.%s.csv' % (name, partition, fold, partition_type))
         df = pd.read_csv(path)
-        matrix = df.as_matrix()
+        matrix = df.to_numpy()
         X, y = matrix[:, :-1], matrix[:, -1]
 
         partitions.append([X, y])
